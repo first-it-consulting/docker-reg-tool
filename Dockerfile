@@ -1,7 +1,10 @@
-FROM alpine:3.8
+FROM python:3.11-slim
 
-RUN apk add --no-cache curl bash jq
+WORKDIR /app
 
-COPY ./docker_reg_tool /
+COPY pyproject.toml .
+COPY src/ ./src/
 
-ENTRYPOINT ["/docker_reg_tool"]
+RUN pip install --no-cache-dir .
+
+ENTRYPOINT ["docker-reg-tool"]

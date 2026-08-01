@@ -1,90 +1,119 @@
 # Docker Registry Tool
 
-Small bash script to do repetitive things with docker registry > 2.1 ( I think, whichever version supports delete by manifest)
+A Python CLI tool for managing Docker Registry v2 repositories.
 
-## Dependencies
+## Features
 
-[Jq](https://stedolan.github.io/jq/)
+- List all repositories in a registry
+- List tags for a specific repository
+- Delete image tags by manifest digest
+- Automatic credential detection from Docker config
+- Support for Basic authentication
+- Insecure registry support (self-signed certs)
+- Debug/tracing mode
 
-```
-Usage:
+## Installation
 
-    ./docker_reg_tool REGISTRY_BASE_URL ACTION [OPTIONS..]
+### From source
 
-    Actions:
-
-    - list               list repos
-
-    - list REPO          list tags for repo
-
-    - delete REPO TAG    delete tag for repo
-
-    Example:
-
-    List all repos
-        /$ ./docker_reg_tool https://registry.my.domain list
-
-    List tags for one repo
-        /$ ./docker_reg_tool https://registry.my.domain list some-repo
-
-    Delete tag for a repo
-        /$ ./docker_reg_tool https://registry.my.domain delete some-repo some-tag
-
+```bash
+git clone https://github.com/yourusername/docker-reg-tool.git
+cd docker-reg-tool
+pip install -e .
 ```
 
-If you want something more fully featured then check out [crane](https://github.com/google/go-containerregistry/blob/main/cmd/crane/doc/crane.md).
+### Using pip
 
-## Docker config file location
-
-If your config.json location is not ~/.docker/config.json, you can define the location with the DOCKER_CONFIG environment variable.
-
-    DOCKER_CONFIG="/your/path/to/docker/config.json" ./docker_reg_tool ...
-
-## Credentials
-
-...are sniffed out of ~/.docker/config.json. So you need to do `docker login...` before you can use this tool.
-
-They can also be set with the `BASIC_AUTH` environment variable.
-
-    BASIC_AUTH=user:pass ./docker_reg_tool ...
-
-Only been tested on Basic auth.
-
-## Insecure Registry
-
-Set the `INSECURE_REGISTRY` to true;
-
-    INSECURE_REGISTRY=true ./docker_reg_tool ...
-
-## Registry Settings
-
-In order for this to work, the registry needs to be running with
-If docker image:
+```bash
+pip install docker-reg-tool
 ```
-REGISTRY_STORAGE_DELETE_ENABLED="true"
+
+## Usage
+
+```bash
+# List all repositories
+docker-reg-tool https://registry.example.com:5000 list
+
+# List tags for a repository
+docker-reg-tool https://registry.example.com:5000 list my-repo
+
+# Delete a tag
+docker-reg-tool https://registry.example.com:5000 delete my-repo v1.0.0
 ```
-Or in the config file:
+
+## Authentication
+
+Credentials are automatically detected from `~/.docker/config.json` (or the path specified by `DOCKER_CONFIG`).
+
+Alternatively, set the `BASIC_AUTH` environment variable:
+
+```bash
+export BASIC_AUTH="username:password"
+docker-reg-tool https://registry.example.com:5000 list
 ```
+
+## Configuration
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `BASIC_AUTH` | Basic auth credentials (user:pass) | - |
+| `DOCKER_CONFIG` | Path to Docker config.json | `~/.docker/config.json` |
+| `INSECURE_REGISTRY` | Skip TLS verification (set to `true`) | `false` |
+| `TRACE` | Enable debug logging (set to `true`) | `false` |
+
+## Development
+
+### Setup
+
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+pytest tests/ -v
+```
+
+### Linting
+
+```bash
+ruff check src/
+```
+
+## Docker Image
+
+Build and run:
+
+```bash
+docker build -t docker-reg-tool .
+docker run --rm -v ~/.docker:/root/.docker docker-reg-tool https://registry.example.com:5000 list
+```
+
+## Registry Requirements
+
+The registry must have deletion enabled:
+
+```yaml
 storage:
   delete:
     enabled: true
 ```
 
-Also, the size will not decrease until the garbage collector runs.
-You can trigger it manually with:
+After deleting tags, run the garbage collector to reclaim space:
+
+```bash
+docker exec registry /bin/registry garbage-collect /etc/docker/registry/config.yml
 ```
-docker exec registry /bin/registry garbage-collect -m=true /etc/docker/registry/config.yml
-```
 
-## Debugging
+## License
 
-Set the `TRACE` environment variable to true to turn on `set -x`
-
-    TRACE=true ./docker_reg_tool ...
-
-## Docker Image
-
-See https://hub.docker.com/r/byrnedo/reg-tool/
+MIT
 
 
 
