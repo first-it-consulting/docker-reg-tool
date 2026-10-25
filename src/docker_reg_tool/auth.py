@@ -6,12 +6,11 @@ import base64
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def parse_docker_config(config_path: str) -> Optional[str]:
+def parse_docker_config(config_path: str, registry: str | None = None) -> str | None:
     """Parse Docker config.json and return auth credentials for a registry.
 
     Looks up credentials by both the registry hostname and the full URL
@@ -19,6 +18,8 @@ def parse_docker_config(config_path: str) -> Optional[str]:
 
     Args:
         config_path: Path to docker/config.json file.
+        registry: Optional registry hostname (e.g. 'registry.example.com:5000')
+            to look up first before falling back to all configured entries.
 
     Returns:
         Base64-encoded credentials string, or None if not found.
@@ -40,12 +41,10 @@ def parse_docker_config(config_path: str) -> Optional[str]:
         logger.debug("No auths found in Docker config")
         return None
 
-    # We need the registry hostname to look up - this is set by the caller
-    # after parsing the URL. This function just does the lookup.
-    return _lookup_auth(auths)
+    return _lookup_auth(auths, registry)
 
 
-def _lookup_auth(auths: dict, registry: Optional[str] = None) -> Optional[str]:
+def _lookup_auth(auths: dict, registry: str | None = None) -> str | None:
     """Look up auth credentials in the auths dict.
 
     Args:
@@ -64,7 +63,7 @@ def _lookup_auth(auths: dict, registry: Optional[str] = None) -> Optional[str]:
         # Strip protocol if present
         for prefix in ("https://", "http://"):
             if registry.startswith(prefix):
-                candidates.append(registry[len(prefix):])
+                candidates.append(registry[len(prefix) :])
                 break
 
     # Always try localhost:5000 variants

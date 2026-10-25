@@ -6,13 +6,20 @@ import argparse
 import logging
 import os
 import sys
-from typing import Optional
 
+from docker_reg_tool.auth import parse_docker_config
 from docker_reg_tool.client import (
     RegistryClient,
     RegistryConfig,
     RegistryError,
 )
+
+
+def _parse_bool(value: str | None) -> bool:
+    """Interpret a string env var as a boolean (returns False for None)."""
+    if value is None:
+        return False
+    return value.strip().lower() in ("1", "true", "yes", "on")
 
 
 def setup_logging(trace: bool = False) -> None:
@@ -56,8 +63,8 @@ def parse_registry_url(url: str) -> tuple[str, str]:
 
 def build_config(
     url: str,
-    basic_auth: Optional[str] = None,
-    docker_config: Optional[str] = None,
+    basic_auth: str | None = None,
+    docker_config: str | None = None,
     insecure: bool = False,
     trace: bool = False,
 ) -> RegistryConfig:
@@ -73,26 +80,28 @@ def build_config(
     Returns:
         Configured RegistryConfig instance.
     """
-    # Determine Docker config path
+    # Fall back to environment variables when a value wasn't given explicitly.
+    if basic_auth is None:
+        basic_auth = os.environ.get("BASIC_AUTH")
     if docker_config is None:
         docker_config = os.environ.get(
             "DOCKER_CONFIG",
             os.path.expanduser("~/.docker/config.json"),
         )
+    if not insecure:
+        insecure = _parse_bool(os.environ.get("INSECURE_REGISTRY"))
+    if not trace:
+        trace = _parse_bool(os.environ.get("TRACE"))
 
     # Parse URL to get registry hostname for auth lookup
     _, registry_host = parse_registry_url(url)
 
-    # Get credentials
-    auth = basic_auth
+    # Resolve credentials: explicit Basic auth > env var > Docker config file.
+    auth = basic_auth or parse_docker_config(docker_config, registry=registry_host)
     if not auth:
-        from docker_reg_tool.auth import parse_docker_config
-
-        auth = parse_docker_config(docker_config)
-        if not auth:
-            raise ValueError(
-                "No credentials found. Set BASIC_AUTH env var or run 'docker login'."
-            )
+        raise ValueError(
+            "No credentials found. Set BASIC_AUTH env var or run 'docker login'."
+        )
 
     return RegistryConfig(
         base_url=url,
@@ -202,7 +211,7 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entry point for the CLI.
 
     Args:
@@ -216,13 +225,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Build config from args and environment
     try:
-        config = build_config(
-            url=args.url,
-            basic_auth=os.environ.get("BASIC_AUTH"),
-            docker_config=os.environ.get("DOCKER_CONFIG"),
-            insecure=bool(os.environ.get("INSECURE_REGISTRY")),
-            trace=bool(os.environ.get("TRACE")),
-        )
+        config = build_config(url=args.url)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 4

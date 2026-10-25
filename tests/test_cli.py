@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -50,13 +50,15 @@ class TestBuildConfig:
 
     def test_insecure_flag(self):
         """INSECURE_REGISTRY env var should be respected."""
-        with patch.dict("os.environ", {"INSECURE_REGISTRY": "true"}):
+        with patch.dict(
+            "os.environ", {"INSECURE_REGISTRY": "true", "BASIC_AUTH": "user:pass"}
+        ):
             config = build_config("http://localhost:5000")
             assert config.insecure is True
 
     def test_trace_flag(self):
         """TRACE env var should be respected."""
-        with patch.dict("os.environ", {"TRACE": "true"}):
+        with patch.dict("os.environ", {"TRACE": "true", "BASIC_AUTH": "user:pass"}):
             config = build_config("http://localhost:5000")
             assert config.trace is True
 
@@ -64,11 +66,13 @@ class TestBuildConfig:
         """DOCKER_CONFIG env var should be respected."""
         with patch("docker_reg_tool.cli.parse_docker_config") as mock_parse:
             mock_parse.return_value = "dXNlcjpwYXNz"
-            config = build_config(
+            build_config(
                 "http://localhost:5000",
                 docker_config="/custom/path/config.json",
             )
-            mock_parse.assert_called_once_with("/custom/path/config.json")
+            mock_parse.assert_called_once_with(
+                "/custom/path/config.json", registry="localhost:5000"
+            )
 
     def test_no_credentials(self):
         """Should raise error if no credentials found."""

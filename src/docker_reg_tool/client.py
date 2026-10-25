@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import requests
-from requests.exceptions import ConnectionError, RequestException
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +16,8 @@ class RegistryConfig:
     """Configuration for connecting to a Docker Registry."""
 
     base_url: str
-    basic_auth: Optional[str] = None
-    docker_config_path: Optional[str] = None
+    basic_auth: str | None = None
+    docker_config_path: str | None = None
     insecure: bool = False
     trace: bool = False
 
@@ -40,6 +39,7 @@ class RegistryConfig:
 
         if self.basic_auth:
             import base64
+
             credentials = base64.b64encode(self.basic_auth.encode()).decode()
             session.headers["Authorization"] = f"Basic {credentials}"
 
@@ -91,7 +91,7 @@ class RegistryClient:
         self,
         method: str,
         path: str,
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
         **kwargs,
     ) -> requests.Response:
         """Make an HTTP request to the registry API."""
@@ -170,7 +170,7 @@ class RegistryClient:
             "application/vnd.oci.image.manifest.v1+json",
         ]
 
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for accept in accept_types:
             try:
@@ -192,8 +192,13 @@ class RegistryClient:
                         response.status_code, "No Docker-Content-Digest header"
                     )
 
-                logger.info("Manifest digest for %s/%s:%s = %s",
-                            self.config.base_url, repo, tag, digest)
+                logger.info(
+                    "Manifest digest for %s/%s:%s = %s",
+                    self.config.base_url,
+                    repo,
+                    tag,
+                    digest,
+                )
                 return ManifestInfo(
                     digest=digest.strip(),
                     media_type=accept,
@@ -204,8 +209,10 @@ class RegistryClient:
                 logger.debug("Failed to get manifest with %s: %s", accept, e)
                 continue
 
-        raise RegistryAPIError(500, f"Could not retrieve manifest for {repo}:{tag}. "
-                              f"Last error: {last_error}")
+        raise RegistryAPIError(
+            500,
+            f"Could not retrieve manifest for {repo}:{tag}. Last error: {last_error}",
+        )
 
     def delete_tag(self, repo: str, tag: str) -> bool:
         """Delete a tag from a repository.
@@ -229,8 +236,13 @@ class RegistryClient:
         )
 
         if response.status_code == 202:
-            logger.info("Deleted %s/%s:%s (digest: %s)",
-                        self.config.base_url, repo, tag, manifest.digest)
+            logger.info(
+                "Deleted %s/%s:%s (digest: %s)",
+                self.config.base_url,
+                repo,
+                tag,
+                manifest.digest,
+            )
             return True
 
         raise RegistryAPIError(

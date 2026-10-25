@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -19,11 +17,15 @@ class TestParseDockerConfig:
         """Should parse a valid Docker config."""
         config_file = tmp_path / "config.json"
         auth_str = base64.b64encode(b"user:pass").decode()
-        config_file.write_text(json.dumps({
-            "auths": {
-                "localhost:5000": {"auth": auth_str},
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        "localhost:5000": {"auth": auth_str},
+                    }
+                }
+            )
+        )
 
         result = parse_docker_config(str(config_file))
         assert result == auth_str
@@ -48,6 +50,83 @@ class TestParseDockerConfig:
 
         result = parse_docker_config(str(config_file))
         assert result is None
+
+    def test_matches_by_registry_hostname(self, tmp_path):
+        """Should prefer credentials keyed by the target registry host."""
+        config_file = tmp_path / "config.json"
+        auth_str = base64.b64encode(b"user:pass").decode()
+        config_file.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        "registry.example.com:5000": {"auth": auth_str},
+                        "other-registry": {"auth": base64.b64encode(b"o:p").decode()},
+                    }
+                }
+            )
+        )
+
+        result = parse_docker_config(
+            str(config_file), registry="registry.example.com:5000"
+        )
+        assert result == auth_str
+
+    def test_strips_protocol_from_registry(self, tmp_path):
+        """Match a bare-host key even when given a protocol-prefixed registry."""
+        config_file = tmp_path / "config.json"
+        auth_str = base64.b64encode(b"user:pass").decode()
+        config_file.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        "registry.example.com:5000": {"auth": auth_str},
+                    }
+                }
+            )
+        )
+
+        result = parse_docker_config(
+            str(config_file), registry="https://registry.example.com:5000"
+        )
+        assert result == auth_str
+
+    def test_prefers_bare_host_key_over_protocol(self, tmp_path):
+        """When both bare and protocol keys exist, prefer the registry host match."""
+        config_file = tmp_path / "config.json"
+        bare = base64.b64encode(b"user:pass").decode()
+        proto = base64.b64encode(b"other:creds").decode()
+        config_file.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        "registry.example.com:5000": {"auth": bare},
+                        "https://registry.example.com:5000": {"auth": proto},
+                    }
+                }
+            )
+        )
+
+        result = parse_docker_config(
+            str(config_file), registry="registry.example.com:5000"
+        )
+        assert result == bare
+
+    def test_falls_back_when_host_not_present(self, tmp_path):
+        """Should still match a config entry when no explicit registry is given."""
+        config_file = tmp_path / "config.json"
+        auth_str = base64.b64encode(b"user:pass").decode()
+        config_file.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        "registry.example.com:5000": {"auth": auth_str},
+                    }
+                }
+            )
+        )
+
+        result = parse_docker_config(str(config_file))
+        assert result == auth_str
 
 
 class TestVerifyCredentials:

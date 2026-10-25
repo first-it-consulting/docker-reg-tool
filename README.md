@@ -1,5 +1,7 @@
 # Docker Registry Tool
 
+[![CI](https://github.com/first-it-consulting/docker-reg-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/first-it-consulting/docker-reg-tool/actions/workflows/ci.yml)
+
 A Python CLI tool for managing Docker Registry v2 repositories.
 
 ## Features

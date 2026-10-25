@@ -3,17 +3,16 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from docker_reg_tool.client import (
+    RegistryAPIError,
     RegistryClient,
     RegistryConfig,
     RegistryError,
-    RegistryAPIError,
 )
 
 
